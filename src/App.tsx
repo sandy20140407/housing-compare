@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, Link2, RotateCcw } from 'lucide-react';
-import { DEFAULT_INPUTS, simulate, type Inputs } from './lib/calc';
+import { DEFAULT_INPUTS, sensitivity, simulate, type Inputs } from './lib/calc';
 import { FREEHOLD, CPF_OA_RATE, STRESS_TEST_RATE, TDSR_LIMIT, type BuyerProfile } from './lib/rules';
 import { decodeInputs, encodeInputs } from './lib/url';
 import { money, pct } from './lib/format';
 import { NumberField, Row, Section, Segmented, Toggle } from './components/controls';
 import { NetWorthChart } from './components/NetWorthChart';
+import { SensitivityPanel } from './components/SensitivityPanel';
 
 export default function App() {
   const [inp, setInp] = useState<Inputs>(() => decodeInputs(window.location.search));
   const set = <K extends keyof Inputs>(k: K) => (v: Inputs[K]) => setInp((p) => ({ ...p, [k]: v }));
   const res = useMemo(() => simulate(inp), [inp]);
+  const sens = useMemo(() => sensitivity(inp), [inp]);
   const [copied, setCopied] = useState(false);
 
   // 参数同步到 URL，方便分享 / 收藏
@@ -228,6 +230,10 @@ export default function App() {
           <Section title="净资产走势（每年末按变现计）">
             <NetWorthChart series={res.series} horizon={horizon} topYear={topYear} />
             <p className="mt-2 text-xs text-ink-3">前几年买房曲线偏低，主要是 BSD / ABSD、SSD 和卖房成本，持有越久摊得越薄。</p>
+          </Section>
+
+          <Section title="关键变量敏感度">
+            <SensitivityPanel s={sens} horizon={horizon} appreciation={inp.appreciation} investmentReturn={inp.investmentReturn} />
           </Section>
 
           <div className="grid gap-6 xl:grid-cols-2">

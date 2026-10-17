@@ -480,3 +480,85 @@ export function simulate(inp: Inputs): Result {
     warnings,
   };
 }
+
+// ---------------------------------------------------------------- 敏感度
+
+export interface SensitivityRow {
+  key: keyof Inputs;
+  label: string;
+  lowLabel: string;
+  highLabel: string;
+  /** 参数调低 / 调高后，「买 − 租」差额相对基准的变化 */
+  lowDelta: number;
+  highDelta: number;
+}
+
+export interface Sensitivity {
+  base: number;
+  rows: SensitivityRow[];
+  /** 打平所需的房价年涨幅 %（高于它买房更划算）；范围内无解为 null */
+  breakevenAppreciation: number | null;
+  /** 打平所需的投资回报率 %（高于它租房更划算）；范围内无解为 null */
+  breakevenInvestmentReturn: number | null;
+}
+
+const gap = (inp: Inputs) => {
+  const s = simulate(inp).atHorizon;
+  return s.buyNetWorth - s.rentNetWorth;
+};
+
+/** 在 [lo, hi] 上找 f(x) = 0，要求 f 单调；无变号时返回 null */
+function solve(f: (x: number) => number, lo: number, hi: number): number | null {
+  let fLo = f(lo);
+  const fHi = f(hi);
+  if (fLo === 0) return lo;
+  if (fLo * fHi > 0) return null;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    const fMid = f(mid);
+    if (Math.abs(hi - lo) < 0.005) return mid;
+    if (fLo * fMid <= 0) hi = mid;
+    else {
+      lo = mid;
+      fLo = fMid;
+    }
+  }
+  return (lo + hi) / 2;
+}
+
+const fmtPct = (n: number) => `${Number(n.toFixed(2))}%`;
+
+export function sensitivity(inp: Inputs): Sensitivity {
+  const base = gap(inp);
+  const rentStep = Math.max(100, Math.round((inp.monthlyRent * 0.1) / 100) * 100);
+  const specs: Array<{ key: keyof Inputs; label: string; step: number; min: number; fmt: (v: number) => string }> = [
+    { key: 'appreciation', label: '房价年涨幅', step: 1, min: -10, fmt: fmtPct },
+    { key: 'loanRate', label: '贷款利率', step: 1, min: 0, fmt: fmtPct },
+    { key: 'investmentReturn', label: '投资回报率', step: 1, min: 0, fmt: fmtPct },
+    { key: 'monthlyRent', label: '首年月租', step: rentStep, min: 0, fmt: (v) => `$${v.toLocaleString('en-SG')}` },
+    { key: 'rentIncrease', label: '租金年涨幅', step: 1, min: -10, fmt: fmtPct },
+  ];
+
+  const rows = specs
+    .map(({ key, label, step, min, fmt }) => {
+      const v = inp[key] as number;
+      const lo = Math.max(min, v - step);
+      const hi = v + step;
+      return {
+        key,
+        label,
+        lowLabel: fmt(lo),
+        highLabel: fmt(hi),
+        lowDelta: gap({ ...inp, [key]: lo }) - base,
+        highDelta: gap({ ...inp, [key]: hi }) - base,
+      };
+    })
+    .sort((a, b) => Math.max(Math.abs(b.lowDelta), Math.abs(b.highDelta)) - Math.max(Math.abs(a.lowDelta), Math.abs(a.highDelta)));
+
+  return {
+    base,
+    rows,
+    breakevenAppreciation: solve((x) => gap({ ...inp, appreciation: x }), -10, 15),
+    breakevenInvestmentReturn: solve((x) => gap({ ...inp, investmentReturn: x }), 0, 25),
+  };
+}

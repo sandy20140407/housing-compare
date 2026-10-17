@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_INPUTS, absd, annualizedIrr, bsd, pmt, simulate, ssdRate, type Inputs } from './calc';
+import { DEFAULT_INPUTS, absd, annualizedIrr, bsd, pmt, sensitivity, simulate, ssdRate, type Inputs } from './calc';
 import { leaseValueFactor, FREEHOLD } from './rules';
 
 const inputs = (o: Partial<Inputs> = {}): Inputs => ({ ...DEFAULT_INPUTS, ...o });
@@ -131,5 +131,31 @@ describe('simulate', () => {
     const res = simulate(inputs({ monthlyIncome: 8_000 }));
     expect(res.tdsr!.ratio).toBeGreaterThan(0.55);
     expect(res.warnings.some((w) => w.includes('TDSR'))).toBe(true);
+  });
+});
+
+describe('sensitivity', () => {
+  it('按影响大小排序，默认参数下房价涨幅影响最大', () => {
+    const s = sensitivity(DEFAULT_INPUTS);
+    expect(s.rows[0].key).toBe('appreciation');
+    const swing = (r: (typeof s.rows)[number]) => Math.max(Math.abs(r.lowDelta), Math.abs(r.highDelta));
+    for (let i = 1; i < s.rows.length; i++) expect(swing(s.rows[i - 1])).toBeGreaterThanOrEqual(swing(s.rows[i]));
+  });
+
+  it('方向正确：房价涨得多利好买房，投资回报高利好租房', () => {
+    const s = sensitivity(DEFAULT_INPUTS);
+    const r = (k: string) => s.rows.find((x) => x.key === k)!;
+    expect(r('appreciation').highDelta).toBeGreaterThan(0);
+    expect(r('investmentReturn').highDelta).toBeLessThan(0);
+    expect(r('loanRate').highDelta).toBeLessThan(0);
+  });
+
+  it('在打平点上，买房与租房净资产相等', () => {
+    const s = sensitivity(DEFAULT_INPUTS);
+    expect(s.breakevenAppreciation).not.toBeNull();
+    const at = simulate({ ...DEFAULT_INPUTS, appreciation: s.breakevenAppreciation! }).atHorizon;
+    expect(Math.abs(at.buyNetWorth - at.rentNetWorth)).toBeLessThan(2_000);
+    const ir = simulate({ ...DEFAULT_INPUTS, investmentReturn: s.breakevenInvestmentReturn! }).atHorizon;
+    expect(Math.abs(ir.buyNetWorth - ir.rentNetWorth)).toBeLessThan(2_000);
   });
 });
