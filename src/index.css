@@ -1,1 +1,63 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+
+  --color-bg: #f6f5f2;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1efea;
+  --color-line: #e3e0d8;
+  --color-ink: #1c1b19;
+  --color-ink-2: #45433e;
+  --color-ink-3: #85827a;
+
+  --color-accent: #0f6e6a;
+  /* 买房 / 租房 两条主线 */
+  --color-buy: #1f5fa8;
+  --color-buy-soft: #e8f0f9;
+  --color-rent: #b5651d;
+  --color-rent-soft: #f8eee3;
+
+  --color-pos: #1e7a43;
+  --color-neg: #b3261e;
+  --color-warn: #8a5a00;
+  --color-warn-soft: #fbf3df;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #151513;
+    --color-surface: #1e1d1b;
+    --color-surface-2: #282724;
+    --color-line: #373531;
+    --color-ink: #f0eee9;
+    --color-ink-2: #cfccc4;
+    --color-ink-3: #8f8c84;
+
+    --color-accent: #4fb3ab;
+    --color-buy: #7aaee6;
+    --color-buy-soft: #1d2a3a;
+    --color-rent: #e0a066;
+    --color-rent-soft: #352a1f;
+
+    --color-pos: #5cc48a;
+    --color-neg: #f08079;
+    --color-warn: #e2bd6a;
+    --color-warn-soft: #332b17;
+  }
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+/* 数字框不要上下箭头，省空间 */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}

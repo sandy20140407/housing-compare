@@ -6,4 +6,6 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   base: '/housing-compare/',
   plugins: [react(), tailwindcss()],
+  // recharts 占了大头，单页工具不拆包也可以接受
+  build: { chunkSizeWarningLimit: 700 },
 });
