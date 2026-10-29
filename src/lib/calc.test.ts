@@ -159,3 +159,35 @@ describe('sensitivity', () => {
     expect(Math.abs(ir.buyNetWorth - ir.rentNetWorth)).toBeLessThan(2_000);
   });
 });
+
+describe('先出租', () => {
+  const zero = inputs({
+    isNewLaunch: false, loanRate: 0, appreciation: 0, leaseRemaining: FREEHOLD, investmentReturn: 0, rentIncrease: 0,
+    useCPF: false, cpfOABalance: 0, cpfOAMonthly: 0, propertyTaxMonthly: 0, maintenanceMonthly: 0, insuranceMonthly: 0,
+    buyLegalFee: 0, sellLegalFee: 0, agentFeePct: 0, horizonYears: 10, monthlyRent: 2_000,
+    unitRent: 3_000, unitRentIncrease: 0, rentedPropertyTaxMonthly: 0, rentalTaxRate: 0,
+  });
+  const gap = (i: Inputs) => { const s = simulate(i).atHorizon; return s.buyNetWorth - s.rentNetWorth; };
+
+  it('rentOutYears = 0 时结果与原来一致', () => {
+    expect(gap({ ...zero, rentOutYears: 0 })).toBeCloseTo(gap(zero), 6);
+  });
+
+  it('零利率零税时，出租 10 年多出 =（租金 − 中介费摊销 − 自己房租）× 120', () => {
+    const diff = gap({ ...zero, rentOutYears: 10 }) - gap(zero);
+    expect(diff).toBeCloseTo(120 * (3_000 - 3_000 / 24 - 2_000), 2);
+  });
+
+  it('所得税按（租金 × 85% − 利息）× 税率扣，非自住房产税更高', () => {
+    const base = { ...zero, rentOutYears: 10 };
+    const taxed = gap({ ...base, rentalTaxRate: 10 }) - gap(base);
+    expect(taxed).toBeCloseTo(-120 * 3_000 * 0.85 * 0.1, 2);
+    const pt = gap({ ...base, rentedPropertyTaxMonthly: 300 }) - gap(base);
+    expect(pt).toBeCloseTo(-120 * 300, 2);
+  });
+
+  it('只出租 3 年：之后自住，累计租金净收入只算 36 个月', () => {
+    const r = simulate({ ...zero, rentOutYears: 3 });
+    expect(r.atHorizon.cumRentalNet).toBeCloseTo(36 * (3_000 - 125), 2);
+  });
+});

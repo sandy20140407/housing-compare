@@ -156,6 +156,32 @@ export default function App() {
             </div>
           </Section>
 
+          <Section title="先出租（可选）">
+            <div className="space-y-4">
+              <NumberField
+                label="买入后先出租"
+                unit="年"
+                value={inp.rentOutYears}
+                onChange={set('rentOutYears')}
+                min={0}
+                max={30}
+                step={1}
+                hint={inp.rentOutYears > 0 ? '出租期间你继续租房住，收这套房的租金；之后搬进去自住' : '0 = 买入后直接自住'}
+              />
+              {inp.rentOutYears > 0 && (
+                <>
+                  <NumberField label="本房市场月租" unit="SGD" value={inp.unitRent} onChange={set('unitRent')} min={500} max={20_000} step={50} />
+                  <NumberField label="本房租金年涨幅" unit="%" value={inp.unitRentIncrease} onChange={set('unitRentIncrease')} min={-5} max={15} step={0.5} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <NumberField label="出租时房产税/月" value={inp.rentedPropertyTaxMonthly} onChange={set('rentedPropertyTaxMonthly')} min={0} max={10_000} step={10} noSlider />
+                    <NumberField label="租金所得税率" unit="%" value={inp.rentalTaxRate} onChange={set('rentalTaxRate')} min={0} max={24} step={0.5} noSlider />
+                  </div>
+                  <p className="text-xs text-ink-3">所得税按（租金 × 85% − 房贷利息）计；中介费按每 2 年 1 个月租金摊销；未计空置期。</p>
+                </>
+              )}
+            </div>
+          </Section>
+
           <Section
             title="卖出与比较期"
             aside={
@@ -251,6 +277,7 @@ export default function App() {
                   <Row sub label="到手现金" value={money(cashProceeds)} tone={cashProceeds < 0 ? 'neg' : undefined} />
                 </>
               )}
+              {inp.rentOutYears > 0 && <Row sub label={`其中前 ${Math.min(inp.rentOutYears, horizon)} 年出租，累计租金净收入（已计入投资账户）`} value={money(h.cumRentalNet)} />}
               <Row label="+ 买房方的投资账户" value={money(h.buyPortfolio)} />
               {inp.useCPF && <Row label="+ 买房方 CPF OA" value={money(h.buyOA)} />}
               <Row strong label="买房总净资产" value={money(h.buyNetWorth)} />
@@ -353,7 +380,8 @@ export default function App() {
               <li>BSD、ABSD 和律师费按现金支付（BSD 实际可用 CPF 报销，这里保守处理）。</li>
               <li>CPF 应计利息按 OA 利率 {pct(CPF_OA_RATE)} 复利；卖房时退回 OA，不影响总净资产，但影响到手现金。</li>
               <li>地契衰减按 Bala's Table 形状的近似曲线，只是估算。</li>
-              <li>没算的：装修、租房中介费 / 押金、出租收入、利率变动、交易摩擦外的市场风险。</li>
+              <li>先出租：出租期间自己继续租房；租金收入扣中介费摊销（每 2 年 1 个月）、所得税（租金 85% 减房贷利息后按边际税率）和非自住房产税。</li>
+              <li>没算的：装修、租房押金、空置期、利率变动、交易摩擦外的市场风险。</li>
             </ul>
             <p className="mt-3 text-xs text-ink-3">仅供参考，不构成财务或法律建议。政策核对日期：2026-10。</p>
           </Section>

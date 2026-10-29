@@ -64,6 +64,16 @@ export interface Inputs {
   /** 月收入（税前），0 = 不做 TDSR 检查 */
   monthlyIncome: number;
   otherDebtMonthly: number;
+  /** 买入后先出租几年（楼花从 TOP 起算），期间自己继续租房住；0 = 直接自住 */
+  rentOutYears: number;
+  /** 本房出租的市场月租（首年） */
+  unitRent: number;
+  /** 本房租金年涨幅 % */
+  unitRentIncrease: number;
+  /** 出租期间的月房产税（非自住税率） */
+  rentedPropertyTaxMonthly: number;
+  /** 租金收入适用的边际所得税率 % */
+  rentalTaxRate: number;
 }
 
 export const DEFAULT_INPUTS: Inputs = {
@@ -93,7 +103,16 @@ export const DEFAULT_INPUTS: Inputs = {
   sellLegalFee: 3_000,
   monthlyIncome: 0,
   otherDebtMonthly: 0,
+  rentOutYears: 0,
+  unitRent: 4_000,
+  unitRentIncrease: 3,
+  rentedPropertyTaxMonthly: 450,
+  rentalTaxRate: 15,
 };
+
+/** 出租时可扣除的视同费用比例（IRAS：租金的 15%），中介费按每 2 年 1 个月租金摊销 */
+const DEEMED_EXPENSE_RATE = 0.15;
+const AGENT_MONTHS_PER_YEAR = 0.5;
 
 // ---------------------------------------------------------------- 基础公式
 
@@ -184,6 +203,8 @@ export interface YearSnapshot {
   cumBuyOutflow: number;
   cumRentOutflow: number;
   cumInterest: number;
+  /** 截至当年累计租金净收入（先出租时） */
+  cumRentalNet: number;
 }
 
 export interface MonthlyBreakdown {
@@ -272,6 +293,9 @@ export function simulate(inp: Inputs): Result {
   let buyPf = 0;
   let rentPf = 0;
   let rent = inp.monthlyRent;
+  let unitRent = inp.unitRent;
+  const rentOutMonths = Math.max(0, Math.round(inp.rentOutYears * 12));
+  let cumRentalNet = 0;
   let cumBuy = 0;
   let cumRent = 0;
   let cumInterest = 0;
@@ -286,7 +310,11 @@ export function simulate(inp: Inputs): Result {
   const propertyFlows: number[] = [];
 
   for (let m = 0; m < N; m++) {
-    if (m > 0 && m % 12 === 0) rent *= 1 + inp.rentIncrease / 100;
+    if (m > 0 && m % 12 === 0) {
+      rent *= 1 + inp.rentIncrease / 100;
+      unitRent *= 1 + inp.unitRentIncrease / 100;
+    }
+    let monthInterest = 0;
 
     if (inp.useCPF) {
       buyOA += inp.cpfOAMonthly;
@@ -343,6 +371,7 @@ export function simulate(inp: Inputs): Result {
       const pay = Math.min(installment, loanBal + interest);
       loanBal = Math.max(0, loanBal - (pay - interest));
       cumInterest += interest;
+      monthInterest = interest;
       const cpfPay = inp.useCPF ? Math.min(pay, buyOA) : 0;
       buyOA -= cpfPay;
       cpfRefundDue += cpfPay;
@@ -358,7 +387,17 @@ export function simulate(inp: Inputs): Result {
 
     // 持有成本 / 租金
     const moved = !inp.isNewLaunch || m >= topMonth;
-    if (moved) {
+    const rentedOut = moved && m - topMonth < rentOutMonths;
+    if (rentedOut) {
+      // 出租：按非自住税率交房产税；自己继续租房住；租金扣中介费摊销和所得税后为净收入
+      const hold = inp.rentedPropertyTaxMonthly + inp.maintenanceMonthly + inp.insuranceMonthly;
+      const agent = (unitRent * AGENT_MONTHS_PER_YEAR) / 12;
+      const taxable = Math.max(0, unitRent * (1 - DEEMED_EXPENSE_RATE) - monthInterest);
+      const net = unitRent - agent - taxable * (inp.rentalTaxRate / 100);
+      buyCash += hold + rent - net;
+      propertyOut += hold - net;
+      cumRentalNet += net;
+    } else if (moved) {
       const hold = inp.propertyTaxMonthly + inp.maintenanceMonthly + inp.insuranceMonthly;
       buyCash += hold;
       propertyOut += hold;
@@ -407,6 +446,7 @@ export function simulate(inp: Inputs): Result {
         cumBuyOutflow: cumBuy,
         cumRentOutflow: cumRent,
         cumInterest,
+        cumRentalNet,
       });
     }
   }
