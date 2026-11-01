@@ -325,9 +325,9 @@ export function simulate(inp: Inputs): Result {
     }
     let monthInterest = 0;
 
-    if (inp.useCPF) {
-      buyOA += inp.cpfOAMonthly;
-    }
+    // CPF contributions accrue in both scenarios, even when the buyer chooses not to use OA.
+    // useCPF controls withdrawals for the property, not whether CPF contributions exist.
+    buyOA += inp.cpfOAMonthly;
     rentOA += inp.cpfOAMonthly;
 
     let buyCash = 0;
@@ -466,7 +466,8 @@ export function simulate(inp: Inputs): Result {
 
   // 纯房产 IRR：只看投入房子的钱和卖房净回款
   const flows = propertyFlows.slice(0, horizon * 12);
-  flows.push(atHorizon.netEquity);
+  // Sale occurs at the end of the last simulated month, not one month after it.
+  flows[flows.length - 1] += atHorizon.netEquity;
   const propertyIrr = annualizedIrr(flows);
 
   const crossover = series.find((s) => s.year <= horizon && s.buyNetWorth >= s.rentNetWorth);
