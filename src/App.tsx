@@ -6,6 +6,7 @@ import { decodeInputs, encodeInputs } from './lib/url';
 import { money, pct } from './lib/format';
 import { NumberField, Row, Section, Segmented, Toggle } from './components/controls';
 import { NetWorthChart } from './components/NetWorthChart';
+import { HousingDecision } from './components/HousingDecision';
 import { SensitivityPanel } from './components/SensitivityPanel';
 
 export default function App() {
@@ -61,6 +62,7 @@ export default function App() {
       </header>
 
       <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[380px_1fr]">
+        <div className="lg:col-span-2"><HousingDecision /></div>
         {/* ------------------------------------------------ 参数 */}
         <aside className="space-y-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1">
           <Section title="房产">
