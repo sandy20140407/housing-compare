@@ -54,6 +54,7 @@ export function compareThreeWays(i: DecisionInputs): DecisionResult[] {
   const startingCash = Math.max(upfront(i.price), 0);
   for (const st of s) st.portfolio = startingCash;
   const costs: number[][] = names.map(() => Array(months).fill(0));
+  const purchases: number[][] = names.map(() => Array(months).fill(0));
   // Pass 1: calculate month-by-month cash housing outlays, with OA withdrawals.
   for (let m = 0; m < months; m++) {
     const marketRent = i.rent * Math.pow(rentFactor, m);
@@ -69,7 +70,7 @@ export function compareThreeWays(i: DecisionInputs): DecisionResult[] {
         st.oa -= cpfUsed;
         const acquisitionCost = bsd(price) + absd(price, i.buyerProfile, 1) + i.buyLegal;
         const cash = equity - cpfUsed + acquisitionCost;
-        costs[k][m] += cash;
+        purchases[k][m] = cash;
         st.cashRequired = cash;
         st.acquisitionCost = acquisitionCost;
         st.home = price;
@@ -98,10 +99,10 @@ export function compareThreeWays(i: DecisionInputs): DecisionResult[] {
   for (let m = 0; m < months; m++) {
     const budget = Math.max(...costs.map(c => c[m]));
     for (let k = 0; k < s.length; k++) {
-      // The purchase month's large outlay is funded by starting cash, not an
-      // imaginary recurring salary. Compare initial capital separately.
+      // Acquisition uses the shared initial liquid capital; never treat it as
+      // an extra monthly salary or give the renter a fictitious windfall.
       const spend = costs[k][m];
-      s[k].portfolio = s[k].portfolio * invFactor + budget - spend;
+      s[k].portfolio = (s[k].portfolio - purchases[k][m]) * invFactor + budget - spend;
     }
   }
   return s.map((st, k) => {
