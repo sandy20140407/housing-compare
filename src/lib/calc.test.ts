@@ -165,7 +165,7 @@ describe('先出租', () => {
     isNewLaunch: false, loanRate: 0, appreciation: 0, leaseRemaining: FREEHOLD, investmentReturn: 0, rentIncrease: 0,
     useCPF: false, cpfOABalance: 0, cpfOAMonthly: 0, propertyTaxMonthly: 0, maintenanceMonthly: 0, insuranceMonthly: 0,
     buyLegalFee: 0, sellLegalFee: 0, agentFeePct: 0, horizonYears: 10, monthlyRent: 2_000,
-    unitRent: 3_000, unitRentIncrease: 0, rentedPropertyTaxMonthly: 0, rentalTaxRate: 0,
+    unitRent: 3_000, unitRentIncrease: 0, rentedPropertyTaxMonthly: 0, rentalTaxRate: 0, holdingCostIncrease: 0,
   });
   const gap = (i: Inputs) => { const s = simulate(i).atHorizon; return s.buyNetWorth - s.rentNetWorth; };
 
@@ -189,5 +189,41 @@ describe('先出租', () => {
   it('只出租 3 年：之后自住，累计租金净收入只算 36 个月', () => {
     const r = simulate({ ...zero, rentOutYears: 3 });
     expect(r.atHorizon.cumRentalNet).toBeCloseTo(36 * (3_000 - 125), 2);
+  });
+});
+
+describe('持有成本增长', () => {
+  const zero = inputs({
+    isNewLaunch: false, loanRate: 0, appreciation: 0, leaseRemaining: FREEHOLD, investmentReturn: 0, rentIncrease: 0,
+    useCPF: false, cpfOABalance: 0, cpfOAMonthly: 0, propertyTaxMonthly: 0, maintenanceMonthly: 100, insuranceMonthly: 0,
+    buyLegalFee: 0, sellLegalFee: 0, agentFeePct: 0, horizonYears: 2, holdingCostIncrease: 0,
+  });
+  const gap = (i: Inputs) => { const s = simulate(i).atHorizon; return s.buyNetWorth - s.rentNetWorth; };
+
+  it('首年按填写值，第 2 年起按年涨幅复利', () => {
+    const diff = gap({ ...zero, holdingCostIncrease: 10 }) - gap(zero);
+    expect(diff).toBeCloseTo(-12 * 100 * 0.1, 2);
+  });
+
+  it('出租期间的非自住房产税也随之增长', () => {
+    const rented = { ...zero, maintenanceMonthly: 0, rentOutYears: 2, unitRent: 3_000, unitRentIncrease: 0, rentedPropertyTaxMonthly: 200, rentalTaxRate: 0 };
+    const diff = gap({ ...rented, holdingCostIncrease: 10 }) - gap(rented);
+    expect(diff).toBeCloseTo(-12 * 200 * 0.1, 2);
+  });
+});
+
+describe('涨幅已含地契衰减', () => {
+  it('打开后与永久地契的房产市值一致，不再额外扣衰减', () => {
+    const base = inputs({ isNewLaunch: false, horizonYears: 10 });
+    const included = simulate({ ...base, leaseRemaining: 60, appreciationIncludesLease: true }).atHorizon;
+    const freehold = simulate({ ...base, leaseRemaining: FREEHOLD }).atHorizon;
+    expect(included.propertyValue).toBeCloseTo(freehold.propertyValue, 6);
+  });
+
+  it('关闭时剩余地契越短，期末市值越低', () => {
+    const base = inputs({ isNewLaunch: false, horizonYears: 10 });
+    const short = simulate({ ...base, leaseRemaining: 60 }).atHorizon.propertyValue;
+    const long = simulate({ ...base, leaseRemaining: 95 }).atHorizon.propertyValue;
+    expect(short).toBeLessThan(long);
   });
 });

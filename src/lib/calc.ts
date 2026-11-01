@@ -44,10 +44,17 @@ export interface Inputs {
   propertyTaxMonthly: number;
   maintenanceMonthly: number;
   insuranceMonthly: number;
-  /** 房价年涨幅 %（不含地契衰减） */
+  /** 房产税、管理费、保险的年涨幅 %（首年按填写值，之后每年按此复利增长） */
+  holdingCostIncrease: number;
+  /** 房价年涨幅 %（默认不含地契衰减，见 appreciationIncludesLease） */
   appreciation: number;
   /** 剩余地契年限；999 = 永久地契 */
   leaseRemaining: number;
+  /**
+   * 房价涨幅是否已包含地契衰减。
+   * 涨幅取自同项目 / 同户型的转售成交时，成交价里已经反映了地契变短，应打开，避免重复扣。
+   */
+  appreciationIncludesLease: boolean;
   useCPF: boolean;
   cpfOABalance: number;
   cpfOAMonthly: number;
@@ -90,8 +97,10 @@ export const DEFAULT_INPUTS: Inputs = {
   propertyTaxMonthly: 250,
   maintenanceMonthly: 350,
   insuranceMonthly: 25,
+  holdingCostIncrease: 2,
   appreciation: 2.5,
   leaseRemaining: 99,
+  appreciationIncludesLease: false,
   useCPF: true,
   cpfOABalance: 100_000,
   cpfOAMonthly: 1_000,
@@ -227,7 +236,7 @@ export interface Result {
   upfrontCpf: number;
   stages: StagePayment[];
   topMonth: number;
-  /** 交房后（贷款全额放款后）的稳态月支出 */
+  /** 交房后（贷款全额放款后）首年的月支出；持有成本之后按 holdingCostIncrease 增长 */
   monthly: MonthlyBreakdown;
   /** 楼花建设期内平均月供（进度款放款部分） */
   constructionAvgInstallment: number;
@@ -385,12 +394,13 @@ export function simulate(inp: Inputs): Result {
       if (m === lastStageMonth) installmentAfterCompletion = installment;
     }
 
-    // 持有成本 / 租金
+    // 持有成本 / 租金（持有成本按年复利增长）
+    const holdGrowth = Math.pow(1 + inp.holdingCostIncrease / 100, Math.floor(m / 12));
     const moved = !inp.isNewLaunch || m >= topMonth;
     const rentedOut = moved && m - topMonth < rentOutMonths;
     if (rentedOut) {
       // 出租：按非自住税率交房产税；自己继续租房住；租金扣中介费摊销和所得税后为净收入
-      const hold = inp.rentedPropertyTaxMonthly + inp.maintenanceMonthly + inp.insuranceMonthly;
+      const hold = (inp.rentedPropertyTaxMonthly + inp.maintenanceMonthly + inp.insuranceMonthly) * holdGrowth;
       const agent = (unitRent * AGENT_MONTHS_PER_YEAR) / 12;
       const taxable = Math.max(0, unitRent * (1 - DEEMED_EXPENSE_RATE) - monthInterest);
       const net = unitRent - agent - taxable * (inp.rentalTaxRate / 100);
@@ -398,7 +408,7 @@ export function simulate(inp: Inputs): Result {
       propertyOut += hold - net;
       cumRentalNet += net;
     } else if (moved) {
-      const hold = inp.propertyTaxMonthly + inp.maintenanceMonthly + inp.insuranceMonthly;
+      const hold = (inp.propertyTaxMonthly + inp.maintenanceMonthly + inp.insuranceMonthly) * holdGrowth;
       buyCash += hold;
       propertyOut += hold;
     } else if (inp.rentWhileWaiting) {
@@ -423,7 +433,8 @@ export function simulate(inp: Inputs): Result {
     if ((m + 1) % 12 === 0) {
       const monthsHeld = m + 1;
       const t = monthsHeld / 12;
-      const value = price * Math.pow(1 + inp.appreciation / 100, t) * leaseDecay(inp.leaseRemaining, t);
+      const decay = inp.appreciationIncludesLease ? 1 : leaseDecay(inp.leaseRemaining, t);
+      const value = price * Math.pow(1 + inp.appreciation / 100, t) * decay;
       const ssd = value * ssdRate(monthsHeld);
       const sellingCosts = value * (inp.agentFeePct / 100) + inp.sellLegalFee;
       const unpaid = Math.max(0, price - paidToDeveloper);

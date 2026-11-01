@@ -95,11 +95,29 @@ export default function App() {
                   hint={inp.leaseRemaining < 60 ? '不足 60 年：CPF 与贷款受限，衰减加速' : inp.leaseRemaining < 80 ? '中年地契，衰减开始明显' : '新地契，前十年衰减很小'}
                 />
               )}
+              {!freehold && (
+                <Toggle
+                  label="涨幅已含地契衰减"
+                  checked={inp.appreciationIncludesLease}
+                  onChange={set('appreciationIncludesLease')}
+                  hint="涨幅取自同项目 / 同户型的转售成交时打开：成交价已反映地契变短，避免重复扣"
+                />
+              )}
               <div className="grid grid-cols-3 gap-2">
                 <NumberField label="房产税/月" value={inp.propertyTaxMonthly} onChange={set('propertyTaxMonthly')} min={0} max={10_000} step={10} noSlider />
                 <NumberField label="管理费/月" value={inp.maintenanceMonthly} onChange={set('maintenanceMonthly')} min={0} max={10_000} step={10} noSlider />
                 <NumberField label="保险/月" value={inp.insuranceMonthly} onChange={set('insuranceMonthly')} min={0} max={2_000} step={5} noSlider />
               </div>
+              <NumberField
+                label="持有成本年涨幅"
+                unit="%"
+                value={inp.holdingCostIncrease}
+                onChange={set('holdingCostIncrease')}
+                min={0}
+                max={10}
+                step={0.5}
+                hint="房产税按年值（≈ 市场租金）计，管理费随通胀上调；上面三项填首年金额"
+              />
             </div>
           </Section>
 
@@ -265,7 +283,13 @@ export default function App() {
           <div className="grid gap-6 xl:grid-cols-2">
             <Section title={`第 ${horizon} 年卖出明细`}>
               <Row label="房产市值" value={money(h.propertyValue)} />
-              {!freehold && <Row sub label={`含地契衰减（剩 ${inp.leaseRemaining - horizon} 年）`} value="" />}
+              {!freehold && (
+                <Row
+                  sub
+                  label={inp.appreciationIncludesLease ? '涨幅已含地契衰减，不另扣' : `含地契衰减（剩 ${inp.leaseRemaining - horizon} 年）`}
+                  value=""
+                />
+              )}
               <Row label="− 剩余贷款" value={money(h.loanBalance)} />
               {h.unpaidToDeveloper > 0 && <Row label="− 未付开发商进度款（由下家承接）" value={money(h.unpaidToDeveloper)} />}
               <Row label={`− 中介费 + 律师费`} value={money(h.sellingCosts)} />
@@ -379,7 +403,8 @@ export default function App() {
               <li>BSD 按住宅分级税率；ABSD 按 2023-04-27 起税率；SSD 按 2025-07-04 起的 4 年持有期（16 / 12 / 8 / 4%），楼花从签约起算，不是从 TOP 起算。</li>
               <li>BSD、ABSD 和律师费按现金支付（BSD 实际可用 CPF 报销，这里保守处理）。</li>
               <li>CPF 应计利息按 OA 利率 {pct(CPF_OA_RATE)} 复利；卖房时退回 OA，不影响总净资产，但影响到手现金。</li>
-              <li>地契衰减按 Bala's Table 形状的近似曲线，只是估算。</li>
+              <li>地契衰减按 Bala's Table 形状的近似曲线，只是估算；如果房价涨幅取自转售成交（已含衰减），打开「涨幅已含地契衰减」。</li>
+              <li>房产税、管理费、保险填首年金额，之后按持有成本年涨幅每年复利增长。</li>
               <li>先出租：出租期间自己继续租房；租金收入扣中介费摊销（每 2 年 1 个月）、所得税（租金 85% 减房贷利息后按边际税率）和非自住房产税。</li>
               <li>没算的：装修、租房押金、空置期、利率变动、交易摩擦外的市场风险。</li>
             </ul>
