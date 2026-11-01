@@ -227,3 +227,27 @@ describe('涨幅已含地契衰减', () => {
     expect(short).toBeLessThan(long);
   });
 });
+
+
+describe('现金流校准回归', () => {
+  it('不使用 CPF 买房时，两种方案仍收到相同 CPF 月缴存', () => {
+    const i = inputs({ isNewLaunch: false, useCPF: false, cpfOABalance: 20_000, cpfOAMonthly: 1_000, horizonYears: 5 });
+    const s = simulate(i).atHorizon;
+    expect(s.buyOA).toBeCloseTo(s.rentOA, 6);
+    expect(s.buyOA).toBeGreaterThan(20_000 + 60_000);
+  });
+
+  it('房产 IRR 在年末出售时不会额外延后一个月', () => {
+    const i = inputs({ isNewLaunch: false, price: 1_000_000, downPaymentPct: 100, loanRate: 0,
+      useCPF: false, cpfOABalance: 0, cpfOAMonthly: 0, appreciation: 0,
+      appreciationIncludesLease: true, horizonYears: 1, monthlyRent: 0,
+      propertyTaxMonthly: 0, maintenanceMonthly: 0, insuranceMonthly: 0,
+      buyLegalFee: 0, sellLegalFee: 0, agentFeePct: 0 });
+    const result = simulate(i);
+    // Cash purchase at t=0 and sale at the end of month 12.
+    // BSD is the only loss; the return is annualized over 11 month intervals
+    // in the existing monthly cash-flow convention (first payment at index 0).
+    const expected = annualizedIrr([-1_000_000 - bsd(1_000_000), ...Array(10).fill(0), 1_000_000]);
+    expect(result.propertyIrr).toBeCloseTo(expected, 8);
+  });
+});
